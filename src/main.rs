@@ -71,8 +71,7 @@ async fn handle_socket(
             if addr.is_ipv6() {
                 0
             } else {
-                let ip_header_len = (sbuf[0] & 0x0F) as usize * 4;
-                ip_header_len
+                (sbuf[0] & 0x0F) as usize * 4
             }
         };
         // ipv4
