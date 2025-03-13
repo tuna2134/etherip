@@ -6,7 +6,7 @@ use std::{
 use async_socket::AsyncSocket;
 use clap::Parser;
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
-use tun::{AbstractDevice, Configuration};
+use tun::{AbstractDevice, Configuration, Layer};
 
 mod async_socket;
 
@@ -68,6 +68,7 @@ async fn main() -> anyhow::Result<()> {
     let device = {
         let mut config = Configuration::default();
         config.up();
+        config.layer(Layer::L2);
         tun::create_as_async(&config)?
     };
     let size = device.mtu()? as usize + tun::PACKET_INFORMATION_LENGTH;
