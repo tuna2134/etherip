@@ -1,12 +1,13 @@
 use std::{
     net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6},
     str::FromStr,
+    sync::Arc,
 };
 
 use async_socket::AsyncSocket;
 use clap::Parser;
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
-use tun::{AbstractDevice, Configuration, Layer};
+use tun::{AbstractDevice, AsyncDevice, Configuration, Layer};
 
 mod async_socket;
 
@@ -27,6 +28,69 @@ fn convert_ethernet_frame_to_ether_packet(buf: &[u8]) -> Vec<u8> {
     packet.extend_from_slice(&ether_header);
     packet.extend_from_slice(buf);
     packet
+}
+
+async fn handle_device(
+    size: usize,
+    device: Arc<AsyncDevice>,
+    socket: Arc<AsyncSocket>,
+    dst_addr: SockAddr,
+) -> anyhow::Result<()> {
+    loop {
+        let mut buf = vec![0; size];
+        let n = device.recv(&mut buf).await;
+        let n = n?;
+        let packet = convert_ethernet_frame_to_ether_packet(&buf[..n]);
+        if packet.is_empty() {
+            continue;
+        }
+        tracing::debug!("packet: {:?}", packet);
+        let n = socket.send_to(&packet, dst_addr.clone()).await?;
+        if n != packet.len() {
+            tracing::debug!("Short write: {} / {}", n, packet.len());
+        }
+    }
+    Ok(())
+}
+
+async fn handle_socket(
+    device: Arc<AsyncDevice>,
+    socket: Arc<AsyncSocket>,
+    dst_addr: SockAddr,
+) -> anyhow::Result<()> {
+    loop {
+        let mut sbuf = vec![0; 9000];
+        let (n, addr) = socket.recv_from(&mut sbuf).await?;
+        if addr != dst_addr {
+            continue;
+        }
+        if n < 20 {
+            tracing::debug!("Received packet is too small: {} bytes", n);
+            continue;
+        }
+        let ip_header_len = ((sbuf[0] & 0x0F) * 4) as usize;
+        if n < ip_header_len + 2 {
+            tracing::debug!("Received packet is too small: {} bytes", n);
+            continue;
+        }
+        if sbuf[ip_header_len] >> 4 != 3 {
+            tracing::debug!(
+                "Invalid EtherIP header: {:?}",
+                &sbuf[ip_header_len..ip_header_len + 2]
+            );
+            continue;
+        }
+        let packet = sbuf[(ip_header_len + 2)..n].to_vec();
+        if packet.is_empty() {
+            continue;
+        }
+        tracing::debug!("packet: {:?}", packet);
+        let n = device.send(&packet).await?;
+        if n != sbuf.len() {
+            tracing::debug!("short write");
+        }
+    }
+    Ok(())
 }
 
 #[tokio::main]
@@ -64,57 +128,30 @@ async fn main() -> anyhow::Result<()> {
         } else {
             unreachable!()
         };
-        (AsyncSocket::new(socket)?, dst_addr)
+        (Arc::new(AsyncSocket::new(socket)?), dst_addr)
     };
     let device = {
         let mut config = Configuration::default();
         config.up();
         config.layer(Layer::L2);
-        tun::create_as_async(&config)?
+        Arc::new(tun::create_as_async(&config)?)
     };
     let size = device.mtu()? as usize + tun::PACKET_INFORMATION_LENGTH;
-    loop {
-        let mut buf = vec![0; size];
-        let mut sbuf = vec![0; 9000];
-        tokio::select! {
-            n = device.recv(&mut buf) => {
-                let n = n?;
-                let packet = convert_ethernet_frame_to_ether_packet(&buf[..n]);
-                if packet.is_empty() {
-                    continue;
-                }
-                tracing::debug!("packet: {:?}", packet);
-                let n = socket.send_to(&packet, dst_addr.clone()).await?;
-                if n != packet.len() {
-                    tracing::debug!("Short write: {} / {}", n, packet.len());
-                }
-            }
-            n = socket.recv_from(&mut sbuf) => {
-                let (n, _) = n?;
-                if n < 20 {
-                    tracing::debug!("Received packet is too small: {} bytes", n);
-                    continue;
-                }
-                let ip_header_len = ((sbuf[0] & 0x0F) * 4) as usize;
-                if n < ip_header_len + 2 {
-                    tracing::debug!("Received packet is too small: {} bytes", n);
-                    continue;
-                }
-                if sbuf[ip_header_len] >> 4 != 3 {
-                    tracing::debug!("Invalid EtherIP header: {:?}", &sbuf[ip_header_len..ip_header_len+2]);
-                    continue;
-                }
-                let packet = sbuf[(ip_header_len + 2)..n].to_vec();
-                if packet.is_empty() {
-                    continue;
-                }
-                tracing::debug!("packet: {:?}", packet);
-                let n = device.send(&packet).await?;
-                if n != buf.len() {
-                    tracing::debug!("short write");
-                }
-            }
-        }
-    }
+    let running_device = tokio::spawn(handle_device(
+        size,
+        Arc::clone(&device),
+        Arc::clone(&socket),
+        dst_addr.clone(),
+    ));
+    let running_socket = tokio::spawn(handle_socket(
+        Arc::clone(&device),
+        Arc::clone(&socket),
+        dst_addr,
+    ));
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {},
+        _ = running_device => {},
+        _ = running_socket => {},
+    };
     Ok(())
 }
