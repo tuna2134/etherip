@@ -1,7 +1,7 @@
 use std::io;
 
 use socket2::{SockAddr, Socket};
-use tokio::io::{unix::AsyncFd, ReadBuf};
+use tokio::io::{ReadBuf, unix::AsyncFd};
 
 pub struct AsyncSocket {
     inner: AsyncFd<Socket>,
