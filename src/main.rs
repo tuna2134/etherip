@@ -60,16 +60,22 @@ async fn handle_socket(
     dst_addr: SockAddr,
 ) -> anyhow::Result<()> {
     loop {
-        let mut sbuf = Vec::new();
+        let mut sbuf = vec![0; 9999];
         let (n, addr) = socket.recv_from(&mut sbuf).await?;
         if addr != dst_addr {
             continue;
         }
-        if n < 20 {
-            tracing::debug!("Received packet is too small: {} bytes", n);
-            continue;
-        }
-        let ip_header_len = ((sbuf[0] & 0x0F) * 4) as usize;
+        tracing::debug!("Received packet: {:?}", &sbuf[..n]);
+        let ip_header_len = {
+            // IPv6
+            if addr.is_ipv6() {
+                0
+            } else {
+                let ip_header_len = (sbuf[0] & 0x0F) as usize * 4;
+                ip_header_len
+            }
+        };
+        // ipv4
         if n < ip_header_len + 2 {
             tracing::debug!("Received packet is too small: {} bytes", n);
             continue;
@@ -77,7 +83,7 @@ async fn handle_socket(
         if sbuf[ip_header_len] >> 4 != 3 {
             tracing::debug!(
                 "Invalid EtherIP header: {:?}",
-                &sbuf[ip_header_len..ip_header_len + 2]
+                &sbuf[ip_header_len..ip_header_len + 3]
             );
             continue;
         }
