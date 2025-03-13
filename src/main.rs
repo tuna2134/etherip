@@ -18,11 +18,12 @@ pub struct Args {
     pub src_addr: String,
     #[arg(short, long)]
     pub dst_addr: String,
+    #[arg(long)]
+    pub device_name: Option<String>,
 }
 
 fn convert_ethernet_frame_to_ether_packet(buf: &[u8]) -> Vec<u8> {
     let mut ether_header = vec![0u8; 2];
-    // version
     ether_header[0] = 3 << 4;
     let mut packet = Vec::with_capacity(2 + buf.len());
     packet.extend_from_slice(&ether_header);
@@ -59,7 +60,7 @@ async fn handle_socket(
     dst_addr: SockAddr,
 ) -> anyhow::Result<()> {
     loop {
-        let mut sbuf = vec![0; 9000];
+        let mut sbuf = Vec::new();
         let (n, addr) = socket.recv_from(&mut sbuf).await?;
         if addr != dst_addr {
             continue;
@@ -134,6 +135,9 @@ async fn main() -> anyhow::Result<()> {
         let mut config = Configuration::default();
         config.up();
         config.layer(Layer::L2);
+        if let Some(device_name) = args.device_name {
+            config.tun_name(device_name);
+        }
         Arc::new(tun::create_as_async(&config)?)
     };
     let size = device.mtu()? as usize + tun::PACKET_INFORMATION_LENGTH;
