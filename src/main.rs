@@ -31,6 +31,7 @@ fn convert_ethernet_frame_to_ether_packet(buf: &[u8]) -> Vec<u8> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt::init();
     let args = Args::parse();
     let (socket, dst_addr) = {
         let (domain, src_v4_addr, src_v6_addr) =
@@ -82,35 +83,35 @@ async fn main() -> anyhow::Result<()> {
                 if packet.is_empty() {
                     continue;
                 }
-                println!("packet: {:?}", packet);
+                tracing::debug!("packet: {:?}", packet);
                 let n = socket.send_to(&packet, dst_addr.clone()).await?;
                 if n != packet.len() {
-                    eprintln!("Short write: {} / {}", n, packet.len());
+                    tracing::debug!("Short write: {} / {}", n, packet.len());
                 }
             }
             n = socket.recv_from(&mut sbuf) => {
                 let (n, _) = n?;
                 if n < 20 {
-                    eprintln!("Received packet is too small: {} bytes", n);
+                    tracing::debug!("Received packet is too small: {} bytes", n);
                     continue;
                 }
                 let ip_header_len = ((sbuf[0] & 0x0F) * 4) as usize;
                 if n < ip_header_len + 2 {
-                    eprintln!("Received packet is too small: {} bytes", n);
+                    tracing::debug!("Received packet is too small: {} bytes", n);
                     continue;
                 }
                 if sbuf[ip_header_len] >> 4 != 3 {
-                    eprintln!("Invalid EtherIP header: {:?}", &sbuf[ip_header_len..ip_header_len+2]);
+                    tracing::debug!("Invalid EtherIP header: {:?}", &sbuf[ip_header_len..ip_header_len+2]);
                     continue;
                 }
                 let packet = sbuf[(ip_header_len + 2)..n].to_vec();
                 if packet.is_empty() {
                     continue;
                 }
-                println!("packet: {:?}", packet);
+                tracing::debug!("packet: {:?}", packet);
                 let n = device.send(&packet).await?;
                 if n != buf.len() {
-                    eprintln!("short write");
+                    tracing::debug!("short write");
                 }
             }
         }
