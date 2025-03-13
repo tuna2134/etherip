@@ -21,7 +21,7 @@ impl AsyncSocket {
                 let mut maybeuninit_buf = ReadBuf::new(buf);
                 let x = unsafe { maybeuninit_buf.unfilled_mut() };
                 let y = inner.get_ref().recv_from(x);
-                let filled = maybeuninit_buf.filled_mut();
+                maybeuninit_buf.filled_mut();
                 y
             }) {
                 Ok(x) => return x,
