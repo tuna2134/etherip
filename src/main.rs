@@ -147,7 +147,7 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(tun::create_as_async(&config)?)
     };
     let device_size = device.mtu()? as usize + tun::PACKET_INFORMATION_LENGTH;
-    let socket_size = device.mtu()? as usize + 2;
+    let socket_size = device.mtu()? as usize + tun::PACKET_INFORMATION_LENGTH + 2;
     let running_device = tokio::spawn(handle_device(
         device_size,
         Arc::clone(&device),
