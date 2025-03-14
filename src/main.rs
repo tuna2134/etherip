@@ -151,18 +151,16 @@ async fn main() -> anyhow::Result<()> {
         }
         Arc::new(tun::create_as_async(&config)?)
     };
-    let device_size = device.mtu()? as usize + tun::PACKET_INFORMATION_LENGTH;
-    let socket_size = device.mtu()? as usize + tun::PACKET_INFORMATION_LENGTH + 2;
     let mut handlers = Vec::new();
     for _ in 0..args.threads {
         handlers.push(tokio::spawn(handle_device(
-            device_size,
+            65535,
             Arc::clone(&device),
             Arc::clone(&socket),
             dst_addr.clone(),
         )));
         handlers.push(tokio::spawn(handle_socket(
-            socket_size,
+            65535,
             Arc::clone(&device),
             Arc::clone(&socket),
             dst_addr.clone(),
