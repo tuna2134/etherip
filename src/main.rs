@@ -55,12 +55,13 @@ async fn handle_device(
 }
 
 async fn handle_socket(
+    size: usize,
     device: Arc<AsyncDevice>,
     socket: Arc<AsyncSocket>,
     dst_addr: SockAddr,
 ) -> anyhow::Result<()> {
     loop {
-        let mut sbuf = vec![0; 9999];
+        let mut sbuf = vec![0; size];
         let (n, addr) = socket.recv_from(&mut sbuf).await?;
         if addr != dst_addr {
             continue;
@@ -145,14 +146,16 @@ async fn main() -> anyhow::Result<()> {
         }
         Arc::new(tun::create_as_async(&config)?)
     };
-    let size = device.mtu()? as usize + tun::PACKET_INFORMATION_LENGTH;
+    let device_size = device.mtu()? as usize + tun::PACKET_INFORMATION_LENGTH;
+    let socket_size = device.mtu()? as usize + 2;
     let running_device = tokio::spawn(handle_device(
-        size,
+        device_size,
         Arc::clone(&device),
         Arc::clone(&socket),
         dst_addr.clone(),
     ));
     let running_socket = tokio::spawn(handle_socket(
+        socket_size,
         Arc::clone(&device),
         Arc::clone(&socket),
         dst_addr,
