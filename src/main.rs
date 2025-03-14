@@ -59,6 +59,7 @@ async fn handle_socket(
     dst_addr: SockAddr,
 ) -> anyhow::Result<()> {
     let mut sbuf = BytesMut::with_capacity(size);
+    let is_ipv6 = dst_addr.is_ipv6();
     loop {
         sbuf.resize(size, 0);
         let (n, addr) = socket.recv_from(&mut sbuf).await?;
@@ -67,7 +68,7 @@ async fn handle_socket(
         }
         sbuf.truncate(n);
         let ip_header_len = {
-            if addr.is_ipv6() {
+            if is_ipv6 {
                 0
             } else {
                 (sbuf[0] & 0x0F) as usize * 4
