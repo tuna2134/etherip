@@ -39,8 +39,7 @@ async fn handle_device(
 ) -> anyhow::Result<()> {
     loop {
         let mut buf = vec![0; size];
-        let n = device.recv(&mut buf).await;
-        let n = n?;
+        let n = device.recv(&mut buf).await?;
         let packet = convert_ethernet_frame_to_ether_packet(&buf[..n]);
         if packet.is_empty() {
             continue;
