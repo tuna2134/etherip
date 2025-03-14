@@ -62,7 +62,6 @@ async fn handle_socket(
     loop {
         let mut sbuf = vec![0; size];
         let (n, addr) = socket.recv_from(&mut sbuf).await?;
-        tracing::debug!("{}", n);
         if addr != dst_addr {
             continue;
         }
