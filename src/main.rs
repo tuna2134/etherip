@@ -133,7 +133,7 @@ async fn main() -> anyhow::Result<()> {
                 0,
             ))
         } else {
-            unreachable!()
+            return Err(anyhow::anyhow!("Invalid address"));
         };
         (Arc::new(AsyncSocket::new(socket)?), dst_addr)
     };
