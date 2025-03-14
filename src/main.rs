@@ -5,12 +5,12 @@ use std::{
 };
 
 use async_socket::AsyncSocket;
+use bytes::BytesMut;
 use clap::Parser;
+use futures::future::join_all;
 use ipnet::IpNet;
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use tun::{AbstractDevice, AsyncDevice, Configuration, Layer};
-use bytes::BytesMut;
-use futures::future::join_all;
 
 mod async_socket;
 
@@ -166,7 +166,7 @@ async fn main() -> anyhow::Result<()> {
             dst_addr.clone(),
         )));
     }
-    
+
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {},
         _ = join_all(handlers) => {},
