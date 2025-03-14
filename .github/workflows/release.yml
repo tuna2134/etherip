@@ -1,6 +1,8 @@
 on:
   release:
-    type: [published]
+    type: [ published ]
+  push:
+    branches: [ master ]
 
 permissions:
   contents: write
@@ -20,4 +22,3 @@ jobs:
         with:
           files: |
             target/deb/*.deb
-          prerelease: true
