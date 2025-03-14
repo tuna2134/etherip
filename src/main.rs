@@ -6,6 +6,7 @@ use std::{
 
 use async_socket::AsyncSocket;
 use clap::Parser;
+use ipnet::IpNet;
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use tun::{AbstractDevice, AsyncDevice, Configuration, Layer};
 use bytes::BytesMut;
@@ -24,6 +25,8 @@ pub struct Args {
     pub device_name: Option<String>,
     #[arg(short, long, default_value = "2")]
     pub threads: usize,
+    #[arg(short, long)]
+    pub address: Option<String>,
 }
 
 fn convert_ethernet_frame_to_ether_packet(buf: &[u8]) -> Vec<u8> {
@@ -134,6 +137,11 @@ async fn main() -> anyhow::Result<()> {
         config.layer(Layer::L2);
         if let Some(device_name) = args.device_name {
             config.tun_name(device_name);
+        }
+        if let Some(address) = args.address {
+            let addr = IpNet::from_str(&address)?;
+            config.address(addr.addr());
+            config.netmask(addr.netmask());
         }
         Arc::new(tun::create_as_async(&config)?)
     };

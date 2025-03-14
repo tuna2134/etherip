@@ -244,6 +244,7 @@ dependencies = [
  "bytes",
  "clap",
  "futures",
+ "ipnet",
  "socket2",
  "tokio",
  "tracing",
