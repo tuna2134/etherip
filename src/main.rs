@@ -8,6 +8,8 @@ use async_socket::AsyncSocket;
 use clap::Parser;
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use tun::{AbstractDevice, AsyncDevice, Configuration, Layer};
+use bytes::BytesMut;
+use futures::future::join_all;
 
 mod async_socket;
 
@@ -20,6 +22,8 @@ pub struct Args {
     pub dst_addr: String,
     #[arg(long)]
     pub device_name: Option<String>,
+    #[arg(short, long, default_value = "2")]
+    pub threads: usize,
 }
 
 fn convert_ethernet_frame_to_ether_packet(buf: &[u8]) -> Vec<u8> {
@@ -37,18 +41,16 @@ async fn handle_device(
     socket: Arc<AsyncSocket>,
     dst_addr: SockAddr,
 ) -> anyhow::Result<()> {
+    let mut buf = BytesMut::with_capacity(size);
     loop {
-        let mut buf = vec![0; size];
+        buf.resize(size, 0);
         let n = device.recv(&mut buf).await?;
-        let packet = convert_ethernet_frame_to_ether_packet(&buf[..n]);
+        buf.truncate(n);
+        let packet = convert_ethernet_frame_to_ether_packet(&buf);
         if packet.is_empty() {
             continue;
         }
-        tracing::debug!("packet: {:?}", packet);
-        let n = socket.send_to(&packet, dst_addr.clone()).await?;
-        if n != packet.len() {
-            tracing::debug!("Short write: {} / {}", n, packet.len());
-        }
+        socket.send_to(&packet, dst_addr.clone()).await?;
     }
     Ok(())
 }
@@ -59,13 +61,14 @@ async fn handle_socket(
     socket: Arc<AsyncSocket>,
     dst_addr: SockAddr,
 ) -> anyhow::Result<()> {
+    let mut sbuf = BytesMut::with_capacity(size);
     loop {
-        let mut sbuf = vec![0; size];
+        sbuf.resize(size, 0);
         let (n, addr) = socket.recv_from(&mut sbuf).await?;
         if addr != dst_addr {
             continue;
         }
-        tracing::debug!("Received packet: {:?}", &sbuf[..n]);
+        sbuf.truncate(n);
         let ip_header_len = {
             // IPv6
             if addr.is_ipv6() {
@@ -76,25 +79,21 @@ async fn handle_socket(
         };
         // ipv4
         if n < ip_header_len + 2 {
-            tracing::debug!("Received packet is too small: {} bytes", n);
+            tracing::error!("Received packet is too small: {} bytes", n);
             continue;
         }
         if sbuf[ip_header_len] >> 4 != 3 {
-            tracing::debug!(
+            tracing::error!(
                 "Invalid EtherIP header: {:?}",
                 &sbuf[ip_header_len..ip_header_len + 3]
             );
             continue;
         }
-        let packet = sbuf[(ip_header_len + 2)..n].to_vec();
+        let packet = sbuf.split_off(ip_header_len + 2);
         if packet.is_empty() {
             continue;
         }
-        tracing::debug!("packet: {:?}", packet);
-        let n = device.send(&packet).await?;
-        if n != sbuf.len() {
-            tracing::debug!("short write");
-        }
+        device.send(&packet).await?;
     }
     Ok(())
 }
@@ -147,22 +146,25 @@ async fn main() -> anyhow::Result<()> {
     };
     let device_size = device.mtu()? as usize + tun::PACKET_INFORMATION_LENGTH;
     let socket_size = device.mtu()? as usize + tun::PACKET_INFORMATION_LENGTH + 2;
-    let running_device = tokio::spawn(handle_device(
-        device_size,
-        Arc::clone(&device),
-        Arc::clone(&socket),
-        dst_addr.clone(),
-    ));
-    let running_socket = tokio::spawn(handle_socket(
-        socket_size,
-        Arc::clone(&device),
-        Arc::clone(&socket),
-        dst_addr,
-    ));
+    let mut handlers = Vec::new();
+    for _ in 0..args.threads {
+        handlers.push(tokio::spawn(handle_device(
+            device_size,
+            Arc::clone(&device),
+            Arc::clone(&socket),
+            dst_addr.clone(),
+        )));
+        handlers.push(tokio::spawn(handle_socket(
+            socket_size,
+            Arc::clone(&device),
+            Arc::clone(&socket),
+            dst_addr.clone(),
+        )));
+    }
+    
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {},
-        _ = running_device => {},
-        _ = running_socket => {},
+        _ = join_all(handlers) => {},
     };
     Ok(())
 }
