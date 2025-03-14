@@ -21,4 +21,4 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            target/deb/*.deb
+            target/debian/*.deb
