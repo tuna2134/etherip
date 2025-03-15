@@ -50,9 +50,6 @@ async fn handle_device(
         let n = device.recv(&mut buf).await?;
         buf.truncate(n);
         let packet = convert_ethernet_frame_to_ether_packet(&buf);
-        if packet.is_empty() {
-            continue;
-        }
         socket.send_to(&packet, dst_addr.clone()).await?;
     }
     Ok(())
@@ -92,9 +89,6 @@ async fn handle_socket(
             continue;
         }
         let packet = sbuf.split_off(ip_header_len + 2);
-        if packet.is_empty() {
-            continue;
-        }
         device.send(&packet).await?;
     }
     Ok(())
