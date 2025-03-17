@@ -145,25 +145,23 @@ async fn main() -> anyhow::Result<()> {
         }
         Arc::new(tun::create_as_async(&config)?)
     };
-    let mut handlers = Vec::new();
-    for _ in 0..args.threads {
-        handlers.push(tokio::spawn(handle_device(
-            65535,
-            Arc::clone(&device),
-            Arc::clone(&socket),
-            dst_addr.clone(),
-        )));
-        handlers.push(tokio::spawn(handle_socket(
-            65535,
-            Arc::clone(&device),
-            Arc::clone(&socket),
-            dst_addr.clone(),
-        )));
-    }
+    let wait_handle_device = tokio::spawn(handle_device(
+        65535,
+        Arc::clone(&device),
+        Arc::clone(&socket),
+        dst_addr.clone(),
+    ));
+    let wait_handle_socket = tokio::spawn(handle_socket(
+        65535,
+        Arc::clone(&device),
+        Arc::clone(&socket),
+        dst_addr.clone(),
+    ));
 
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {},
-        _ = join_all(handlers) => {},
+        _ = wait_handle_device => {},
+        _ = wait_handle_socket => {},
     };
     Ok(())
 }
