@@ -7,7 +7,6 @@ use std::{
 use async_socket::AsyncSocket;
 use bytes::BytesMut;
 use clap::Parser;
-use futures::future::join_all;
 use ipnet::IpNet;
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
 use tun::{AsyncDevice, Configuration, Layer};
