@@ -9,7 +9,7 @@ use bytes::BytesMut;
 use clap::Parser;
 use ipnet::IpNet;
 use socket2::{Domain, Protocol, SockAddr, Socket, Type};
-use tun::{AsyncDevice, Configuration, Layer};
+use tun::{AbstractDevice, AsyncDevice, Configuration, Layer};
 
 mod async_socket;
 
@@ -28,7 +28,7 @@ pub struct Args {
     pub address: Option<String>,
 }
 
-fn convert_ethernet_frame_to_ether_packet(buf: &[u8]) -> Vec<u8> {
+fn build_etherip_packet(buf: &[u8]) -> Vec<u8> {
     let mut ether_header = vec![0u8; 2];
     ether_header[0] = 3 << 4;
     let mut packet = Vec::with_capacity(2 + buf.len());
@@ -48,7 +48,7 @@ async fn handle_device(
         buf.resize(size, 0);
         let n = device.recv(&mut buf).await?;
         buf.truncate(n);
-        let packet = convert_ethernet_frame_to_ether_packet(&buf);
+        let packet = build_etherip_packet(&buf);
         socket.send_to(&packet, dst_addr.clone()).await?;
     }
     Ok(())
@@ -145,13 +145,13 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(tun::create_as_async(&config)?)
     };
     let wait_handle_device = tokio::spawn(handle_device(
-        65535,
+        (device.mtu()? + 50) as usize,
         Arc::clone(&device),
         Arc::clone(&socket),
         dst_addr.clone(),
     ));
     let wait_handle_socket = tokio::spawn(handle_socket(
-        65535,
+        (device.mtu()? + 50) as usize,
         Arc::clone(&device),
         Arc::clone(&socket),
         dst_addr.clone(),
@@ -159,8 +159,12 @@ async fn main() -> anyhow::Result<()> {
 
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {},
-        _ = wait_handle_device => {},
-        _ = wait_handle_socket => {},
+        result = wait_handle_device => {
+            tracing::error!("Device thread exited: {:?}", result);
+        },
+        result = wait_handle_socket => {
+            tracing::error!("Socket thread exited: {:?}", result);
+        },
     };
     Ok(())
 }
