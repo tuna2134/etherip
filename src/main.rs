@@ -132,6 +132,10 @@ async fn main() -> anyhow::Result<()> {
     };
     let device = {
         let mut config = Configuration::default();
+        config.platform_config(|c| {
+            c.napi(true);
+            c.vnet_hdr(true);
+        });
         config.up();
         config.layer(Layer::L2);
         if let Some(device_name) = args.device_name {

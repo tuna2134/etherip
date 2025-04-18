@@ -14,5 +14,5 @@ sudo ip netns exec ns2 ip tuntap add mode tap dev tap0
 sudo ip netns exec ns2 ip link set up dev tap0
 sudo ip netns exec ns1 ip addr add 192.168.1.1/24 dev tap0
 sudo ip netns exec ns2 ip addr add 192.168.1.2/24 dev tap0
-sudo screen -dmS test1 ip netns exec ns1 ./target/debug/etherip -s fd00:1::1 -d fd00:1::2 --device-name=tap0
-sudo screen -dmS test2 ip netns exec ns2 ./target/debug/etherip -s fd00:1::2 -d fd00:1::1 --device-name=tap0
+sudo screen -dmS test1 ip netns exec ns1 ./target/release/etherip -s fd00:1::1 -d fd00:1::2 --device-name=tap0
+sudo screen -dmS test2 ip netns exec ns2 ./target/release/etherip -s fd00:1::2 -d fd00:1::1 --device-name=tap0
