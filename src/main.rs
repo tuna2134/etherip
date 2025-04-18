@@ -134,7 +134,7 @@ async fn main() -> anyhow::Result<()> {
         let mut config = Configuration::default();
         config.platform_config(|c| {
             c.napi(true);
-            c.vnet_hdr(true);
+            c.vnet_hdr(false);
         });
         config.up();
         config.layer(Layer::L2);
