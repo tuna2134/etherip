@@ -22,7 +22,7 @@ bytes = "1.10.1"
 clap = { version = "4.5.32", features = ["derive"] }
 futures = "0.3.31"
 ipnet = "2.11.0"
-socket2 = { version = "0.5.8", features = ["all"] }
+socket2 = { version = "0.6.0", features = ["all"] }
 tokio = { version = "1.44.0", features = ["full"] }
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
