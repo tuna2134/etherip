@@ -6,7 +6,7 @@ edition = "2024"
 [package.metadata.deb]
 maintainer = "tuna2134 <hello@tuna2134.dev>"
 copyright = "2025, tuna2134 <hello@tuna2134.dev>"
-license-file = ["LICENSE", "4"]
+license-file = ["LICENSE.md", "4"]
 extended-description = "Rust EtherIP"
 depends = "$auto"
 section = "utility"
